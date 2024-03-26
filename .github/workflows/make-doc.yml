@@ -1,41 +1,37 @@
-name: Build documentation
-
-on:
-  push:
-    branches:
-    - mc-1.19.x
-    - mc-1.20.x
-
 jobs:
   make_doc:
     name: Build
-    runs-on: ubuntu-latest
-
+    runs-on: self-hosted
     steps:
-    - name: Clone repository
+    - continue-on-error: true
+      name: Clone repository
       uses: actions/checkout@v4
-
-    - name: Set up Java
+    - continue-on-error: true
+      name: Set up Java
       uses: actions/setup-java@v4
       with:
+        distribution: temurin
         java-version: 17
-        distribution: 'temurin'
-
-    - name: Setup Gradle
+    - continue-on-error: true
+      name: Setup Gradle
       uses: gradle/actions/setup-gradle@v3
       with:
         cache-read-only: ${{ !startsWith(github.ref, 'refs/heads/mc-') }}
-
-    - name: Build with Gradle
+    - continue-on-error: true
+      name: Build with Gradle
       run: ./gradlew compileJava --no-daemon || ./gradlew compileJava --no-daemon
-
-    - name: Generate documentation
+    - continue-on-error: true
+      name: Generate documentation
       run: ./gradlew docWebsite :common-api:javadoc  --no-daemon
-
-    - name: Upload documentation
-      run: .github/workflows/make-doc.sh 2> /dev/null
+    - continue-on-error: true
       env:
-        SSH_KEY:  ${{ secrets.SSH_KEY  }}
-        SSH_USER: ${{ secrets.SSH_USER }}
         SSH_HOST: ${{ secrets.SSH_HOST }}
+        SSH_KEY: ${{ secrets.SSH_KEY  }}
         SSH_PORT: ${{ secrets.SSH_PORT }}
+        SSH_USER: ${{ secrets.SSH_USER }}
+      name: Upload documentation
+      run: .github/workflows/make-doc.sh 2> /dev/null
+name: Build documentation
+on:
+  repository_dispatch:
+    types: trigger-ga___make-doc.yml

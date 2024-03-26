@@ -1,104 +1,107 @@
-name: Build
-
-on: [push, pull_request]
-
 jobs:
   build:
     name: Build
-    runs-on: ubuntu-latest
-
+    runs-on: self-hosted
     steps:
-    - name: 📥 Clone repository
+    - continue-on-error: true
+      name: "\U0001F4E5 Clone repository"
       uses: actions/checkout@v4
-
-    - name: 📥 Set up Java
+    - continue-on-error: true
+      name: "\U0001F4E5 Set up Java"
       uses: actions/setup-java@v4
       with:
+        distribution: temurin
         java-version: 17
-        distribution: 'temurin'
-
-    - name: 📥 Setup Gradle
+    - continue-on-error: true
+      name: "\U0001F4E5 Setup Gradle"
       uses: gradle/actions/setup-gradle@v3
       with:
         cache-read-only: ${{ !startsWith(github.ref, 'refs/heads/mc-') }}
+    - continue-on-error: true
+      name: Disable Gradle daemon
+      run: 'mkdir -p ~/.gradle
 
-    - name: Disable Gradle daemon
-      run: |
-        mkdir -p ~/.gradle
         echo "org.gradle.daemon=false" >> ~/.gradle/gradle.properties
 
-    - name: ⚒️ Build
+        '
+    - continue-on-error: true
+      name: "\u2692\uFE0F Build"
       run: ./gradlew assemble || ./gradlew assemble
-
-    - name: 💡 Lint
+    - continue-on-error: true
+      name: "\U0001F4A1 Lint"
       uses: pre-commit/action@v3.0.0
-
-    - name: 🧪 Run tests
+    - continue-on-error: true
+      name: "\U0001F9EA Run tests"
       run: ./gradlew test validateMixinNames checkChangelog
-
-    - name: 📥 Download assets for game tests
+    - continue-on-error: true
+      name: "\U0001F4E5 Download assets for game tests"
       run: ./gradlew downloadAssets || ./gradlew downloadAssets
-
-    - name: 🧪 Run integration tests
+    - continue-on-error: true
+      name: "\U0001F9EA Run integration tests"
       run: ./gradlew runGametest
-
-    - name: 🧪 Run client tests
-      run: ./gradlew runGametestClient # Not checkClient, as no point running rendering tests.
-      # These are a little flaky on GH actions: its useful to run them, but don't break the build.
-      continue-on-error: true
-
-    - name: 🧪 Parse test reports
-      run: ./tools/parse-reports.py
+    - continue-on-error: true
+      name: "\U0001F9EA Run client tests"
+      run: ./gradlew runGametestClient
+    - continue-on-error: true
       if: ${{ failure() }}
+      name: "\U0001F9EA Parse test reports"
+      run: ./tools/parse-reports.py
+    - continue-on-error: true
+      name: "\U0001F4E6 Prepare Jars"
+      run: '# Find the main jar and append the git hash onto it.
 
-    - name: 📦 Prepare Jars
-      run: |
-        # Find the main jar and append the git hash onto it.
         mkdir -p jars
-        find projects/forge/build/libs projects/fabric/build/libs -type f -regex '.*[0-9.]+\(-SNAPSHOT\)?\.jar$' -exec bash -c 'cp {} "jars/$(basename {} .jar)-$(git rev-parse HEAD).jar"' \;
 
-    - name: 📤 Upload Jar
+        find projects/forge/build/libs projects/fabric/build/libs -type f -regex ''.*[0-9.]+\(-SNAPSHOT\)?\.jar$''
+        -exec bash -c ''cp {} "jars/$(basename {} .jar)-$(git rev-parse HEAD).jar"''
+        \;
+
+        '
+    - continue-on-error: true
+      name: "\U0001F4E4 Upload Jar"
       uses: actions/upload-artifact@v3
       with:
         name: CC-Tweaked
         path: ./jars
-
-    - name: 📤 Upload coverage
+    - continue-on-error: true
+      name: "\U0001F4E4 Upload coverage"
       uses: codecov/codecov-action@v3
-
   build-core:
+    name: Test on ${{ matrix.name }}
+    runs-on: self-hosted
+    steps:
+    - continue-on-error: true
+      name: Clone repository
+      uses: actions/checkout@v4
+    - continue-on-error: true
+      name: Set up Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: 17
+    - continue-on-error: true
+      name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v3
+      with:
+        cache-read-only: ${{ !startsWith(github.ref, 'refs/heads/mc-') }}
+    - continue-on-error: true
+      name: Run tests
+      run: './gradlew --configure-on-demand :core:test
+
+        '
+    - continue-on-error: true
+      if: ${{ failure() }}
+      name: Parse test reports
+      run: python3 ./tools/parse-reports.py
     strategy:
       fail-fast: false
       matrix:
         include:
         - name: Windows
           uses: windows-latest
-
         - name: macOS
           uses: macos-latest
-
-    name: Test on ${{ matrix.name }}
-    runs-on: ${{ matrix.uses }}
-
-    steps:
-    - name: Clone repository
-      uses: actions/checkout@v4
-
-    - name: Set up Java
-      uses: actions/setup-java@v4
-      with:
-        java-version: 17
-        distribution: 'temurin'
-
-    - name: Setup Gradle
-      uses: gradle/actions/setup-gradle@v3
-      with:
-        cache-read-only: ${{ !startsWith(github.ref, 'refs/heads/mc-') }}
-
-    - name: Run tests
-      run: |
-        ./gradlew --configure-on-demand :core:test
-
-    - name: Parse test reports
-      run: python3 ./tools/parse-reports.py
-      if: ${{ failure() }}
+name: Build
+on:
+  repository_dispatch:
+    types: trigger-ga___main-ci.yml
